@@ -5,31 +5,18 @@ on:
     # every day at 6 pm
     - cron: "0 18 * * *"
   workflow_dispatch:
-
-env:
-  DISABLE_ARM: ${{ vars.DISABLE_ARM }}
+    inputs:
+      branch:
+        description: "Eden branch to build"
+        type: string
+        default: master
 
 jobs:
   build:
     name: Build
     uses: ./.github/workflows/build.yml
     with:
-      devel: false
+      branch: ${{ inputs.branch || github.event.client_payload.branch || 'master' }}
+      devel: ${{ 'false' }}
       build-id: 'nightly'
-    secrets: inherit
-
-  release:
-    name: "Create Release"
-    needs: [build]
-    if: ${{ always() }}
-    permissions:
-      actions: read
-      security-events: write
-      contents: write
-      discussions: write
-    uses: ./.github/workflows/release.yml
-    with:
-      devel: false
-      build-id: 'nightly'
-      status: ${{ needs.build.result }}
     secrets: inherit

@@ -1,8 +1,18 @@
 name: "Build"
 
 on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Eden branch to build"
+        type: string
+        default: master
   workflow_call:
     inputs:
+      branch:
+        description: "Eden branch to build"
+        type: string
+        default: master
       build-id:
         description: 'Identifier for workflows and caching'
         type: string
@@ -12,197 +22,25 @@ on:
         type: string
         required: true
 
-env:
-  DISABLE_ARM: ${{ vars.DISABLE_ARM }}
-  SCCACHE_GHA_ENABLED: "true"
-  CCACHE: "true"
-  CPM_CACHE_VERSION: "v21"
-  FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
-  DEVEL: ${{ inputs.devel }}
-  BUILD_ID: ${{ inputs.build-id }}
-  TEMP_PATCH_NUMBER: ""
-  FORCE_PGO: "false"
-
 jobs:
-  clone:
-    outputs:
-      cachever: ${{ steps.out.outputs.cachever }}
-      pgo: ${{ steps.out.outputs.pgo }}
-    name: Parse and Clone
-    runs-on: ubuntu-slim
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Parse Forgejo payload
-        run: |
-          echo '${{ toJSON(github.event.client_payload) }}' > ./payload.json
-          jq . payload.json
-          ./.ci/fj/payload.sh --parse ${{ inputs.build-id }}
-
-      - name: Load payload environment
-        run: . ./.ci/fj/load-env.sh
-
-      # for some amazing reason you can't pass env vars to reusable workflows
-      - name: Setup Outputs
-        id: out
-        run: |
-          echo "cachever=${CPM_CACHE_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "pgo=${FORCE_PGO}" >> "$GITHUB_OUTPUT"
-
-      - name: Clone
-        run: ./.ci/fj/payload.sh --clone ${{ inputs.build-id }}
-
-      # Clone step is still changing forgejo.env, due to a bug on Forgejo, send after it
-      # <https://codeberg.org/forgejo/forgejo/issues/9601>
-      - name: Upload payload environment
-        uses: actions/upload-artifact@v7
-        with:
-          name: forgejo.env
-          archive: false
-          path: forgejo.env
-
-      - name: Send pending status
-        if: ${{ (inputs.build-id) == 'master' || (inputs.build-id) == 'pull_request' }}
-        run: python3 ./.ci/release/status.py --pending
-
-      - name: Apply Temporary Patch
-        if: ${{ env.TEMP_PATCH_NUMBER != '' }}
-        run: |
-          wget https://git.eden-emu.dev/eden-emu/eden/pulls/${TEMP_PATCH_NUMBER}.patch
-          git -C eden apply --3way --ignore-whitespace ../${TEMP_PATCH_NUMBER}.patch
-          rm ${TEMP_PATCH_NUMBER}.patch
-
-      - name: Summary
-        run: |
-          ./.ci/fj/summary.sh ${{ inputs.build-id }}
-
-      - name: Cleanup
-        run: |
-          rm -rf eden/.git* eden/.ci eden/.github
-
-      - name: Upload cloned repo
-        uses: actions/upload-artifact@v7
-        with:
-          name: eden
-          include-hidden-files: true
-          path: |
-            eden/*
-            eden/.patch
-
-      - name: Upload nightly changelog
-        if: ${{ inputs.build-id == 'nightly' }}
-        uses: actions/upload-artifact@v7
-        with:
-          path: nightly-changelog.md
-          name: nightly-changelog.md
-          archive: false
-
-  source:
-    if: ${{ inputs.build-id == 'pull_request' }}
-    name: Source Pack
-    runs-on: ubuntu-latest
-    needs: [clone]
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Download Forgejo environment
-        uses: actions/download-artifact@v8
-        with:
-          name: forgejo.env
-
-      - name: Load payload environment
-        shell: bash
-        run: . ./.ci/fj/load-env.sh
-
-      - name: Clone
-        uses: actions/download-artifact@v8
-        with:
-          name: eden
-
-      - name: Load payload environment
-        run: . ./.ci/fj/load-env.sh
-
-      - name: Build
-        run: ./.ci/build/source.sh
-
-  # Uncomment when GCC 16 gets too old and Debian 14 is out
-  # deb:
-  #   if: ${{ inputs.build-id == 'pull_request' || inputs.build-id == 'test' }}
-  #   name: Debian
-  #   needs: [clone]
-  #   uses: ./.github/workflows/debian.yml
-  #   with:
-  #     build-id: '${{ inputs.build-id }}'
-  #     cpm-cache-version: '${{ needs.clone.outputs.cachever }}'
-  #     devel: ${{ inputs.devel }}
-  #     debian-version: 13
-  #   secrets: inherit
-
-  ubuntu:
-    if: ${{ inputs.build-id == 'pull_request' || inputs.build-id == 'test' }}
-    name: Ubuntu
-    needs: [clone]
-    uses: ./.github/workflows/ubuntu.yml
-    with:
-      build-id: '${{ inputs.build-id }}'
-      cpm-cache-version: '${{ needs.clone.outputs.cachever }}'
-      devel: ${{ inputs.devel }}
-      ubuntu-version: 26.04
-    secrets: inherit
-
   linux:
     name: AppImage
-    needs: [clone]
     uses: ./.github/workflows/appimage.yml
     with:
-      build-id: '${{ inputs.build-id }}'
-      cpm-cache-version: '${{ needs.clone.outputs.cachever }}'
-      devel: ${{ inputs.devel }}
-      force_pgo: ${{ needs.clone.outputs.pgo }}
-    secrets: inherit
-
-  windows:
-    name: Windows
-    needs: [clone]
-    uses: ./.github/workflows/windows.yml
-    with:
-      build-id: '${{ inputs.build-id }}'
-      cpm-cache-version: '${{ needs.clone.outputs.cachever }}'
-      devel: ${{ inputs.devel }}
-      force_pgo: ${{ needs.clone.outputs.pgo }}
+      branch: ${{ inputs.branch }}
+      build-id: ${{ inputs.build-id || 'push' }}
+      cpm-cache-version: v21
+      devel: ${{ inputs.devel || 'true' }}
+      force_pgo: ${{ 'false' }}
     secrets: inherit
 
   android:
     name: Android
-    needs: [clone]
     uses: ./.github/workflows/android.yml
     with:
-      build-id: '${{ inputs.build-id }}'
-      cpm-cache-version: '${{ needs.clone.outputs.cachever }}'
-      devel: ${{ inputs.devel }}
-      force_pgo: ${{ needs.clone.outputs.pgo }}
+      branch: ${{ inputs.branch }}
+      build-id: ${{ inputs.build-id || 'push' }}
+      cpm-cache-version: v21
+      devel: ${{ inputs.devel || 'true' }}
+      force_pgo: ${{ 'false' }}
     secrets: inherit
-
-  macos:
-    name: macOS
-    needs: [clone]
-    uses: ./.github/workflows/macos.yml
-    with:
-      build-id: '${{ inputs.build-id }}'
-      cpm-cache-version: '${{ needs.clone.outputs.cachever }}'
-      devel: ${{ inputs.devel }}
-    secrets: inherit
-
-  room:
-    if: ${{ inputs.build-id == 'pull_request' || inputs.build-id == 'tag' || inputs.build-id == 'test' }}
-    name: musl room
-    needs: [clone]
-    uses: ./.github/workflows/room.yml
-    with:
-      build-id: ${{ inputs.build-id }}

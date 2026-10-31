@@ -1,8 +1,18 @@
 name: "Android"
 
 on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Eden branch to build"
+        type: string
+        default: master
   workflow_call:
     inputs:
+      branch:
+        description: "Eden branch to build"
+        type: string
+        default: master
       build-id:
         description: 'Identifier for workflows and caching'
         type: string
@@ -26,10 +36,9 @@ env:
   ANDROID_KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
   SCCACHE_GHA_ENABLED: "true"
   CCACHE: "true"
-  FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
-  DEVEL: ${{ inputs.devel }}
-  BUILD_ID: ${{ inputs.build-id }}
-  FORCE_PGO: ${{ inputs.force_pgo }}
+  DEVEL: ${{ inputs.devel || 'true' }}
+  BUILD_ID: ${{ inputs.build-id || 'push' }}
+  FORCE_PGO: ${{ inputs.force_pgo || 'false' }}
 
 jobs:
   and-matrix:
@@ -65,12 +74,13 @@ jobs:
         uses: ./.github/workflows/setup
         with:
           key: ${{ runner.os }}-amd64-universal
-          version: ${{ inputs.cpm-cache-version }}
+          version: ${{ inputs.cpm-cache-version || 'v21' }}
+          branch: ${{ inputs.branch }}
 
-      - name: Install NDK r30
+      - name: Install NDK r28c
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r30
+          ndk-version: r28c
           link-to-sdk: true
 
       - name: Install dependencies

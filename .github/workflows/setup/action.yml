@@ -2,6 +2,9 @@ name: Setup
 description: Setup ccache, repo, etc
 
 inputs:
+  branch:
+    description: "Eden branch to build"
+    default: master
   key:
     description: 'CPM cache key'
     required: true
@@ -17,19 +20,36 @@ runs:
       with:
         disable_annotations: true
 
-    - name: Download Forgejo environment
-      uses: actions/download-artifact@v8
+    - name: Checkout Eden fork
+      uses: actions/checkout@v7
       with:
-        name: forgejo.env
+        repository: kingbri1/eden
+        ref: ${{ inputs.branch }}
+        path: eden
+        fetch-depth: 0
+        persist-credentials: false
 
-    - name: Load payload environment
+    - name: Prepare source
       shell: bash
-      run: . ./.ci/fj/load-env.sh
-
-    - name: Clone
-      uses: actions/download-artifact@v8
-      with:
-        name: eden
+      env:
+        EDEN_BRANCH: ${{ inputs.branch }}
+      run: |
+        echo "$EDEN_BRANCH" > eden/GIT-REFSPEC
+        git -C eden rev-parse --short=10 HEAD > eden/GIT-COMMIT
+        { git -C eden describe --tags HEAD --abbrev=0 || cat WORKFLOW-TAG; } > eden/GIT-TAG
+        if [ "$BUILD_ID" = tag ]; then
+          cp eden/GIT-TAG eden/GIT-RELEASE
+        fi
+        {
+          echo "ARTIFACT_REF=$(cat eden/GIT-COMMIT)"
+          echo "GITHUB_TAG=$(cat eden/GIT-TAG)"
+          echo "PROJECT_PRETTYNAME=Eden"
+          echo "RELEASE_PGO_HOST=github.com"
+          echo "RELEASE_PGO_REPO=Eden-CI/PGO"
+        } >> "$GITHUB_ENV"
+        rm -rf eden/.git eden/.github eden/.ci
+        cp -a eden/. .
+        rm -rf eden
 
     - name: Set up CPM cache
       uses: actions/cache@v6

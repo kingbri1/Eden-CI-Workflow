@@ -23,7 +23,7 @@ export DEPLOY_VULKAN=1
 export VERSION="${GITHUB_TAG}"
 
 ADD_HOOKS="wayland-is-broken.hook"
-if [ "$DEVEL" != "true" ]; then
+if [ "$DEVEL" != "true" ] && [ -n "$B2_PUBLIC_URL" ]; then
 	ADD_HOOKS="$ADD_HOOKS:self-updater.hook"
 fi
 
@@ -36,7 +36,9 @@ _zsync="${PROJECT_PRETTYNAME}-Linux-${FULL_ARCH}.AppImage.zsync"
 # Thanks, Microsoft.
 # TODO(crueter): Proper fj/b2 handling.
 # UPINFO="zsync|https://${RELEASE_HOST}/${RELEASE_REPO}/releases/download/latest/${_zsync}"
-UPINFO="zsync|https://${B2_PUBLIC_URL}/latest/${_zsync}"
+if [ -n "$B2_PUBLIC_URL" ]; then
+	UPINFO="zsync|https://${B2_PUBLIC_URL}/latest/${_zsync}"
+fi
 
 # shellcheck disable=SC2153
 if [ "$BUILD_ID" = 'nightly' ]; then
@@ -59,7 +61,7 @@ chmod a+x quick-sharun
 echo "-- Generating AppImage... --"
 ./quick-sharun --make-appimage
 
-if [ "$DEVEL" = 'true' ]; then
+if [ "$DEVEL" = 'true' ] || [ -z "$B2_PUBLIC_URL" ]; then
     rm -f "$OUTPATH/$OUTNAME.zsync"
 else
     mv "$OUTPATH/$OUTNAME.zsync" "$OUTPATH/${_zsync}"

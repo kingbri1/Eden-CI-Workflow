@@ -1,8 +1,18 @@
 name: "AppImage"
 
 on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Eden branch to build"
+        type: string
+        default: master
   workflow_call:
     inputs:
+      branch:
+        description: "Eden branch to build"
+        type: string
+        default: master
       build-id:
         description: "Identifier for workflows and caching"
         type: string
@@ -21,13 +31,11 @@ on:
         required: true
 
 env:
-  DISABLE_ARM: ${{ vars.DISABLE_ARM }}
   SCCACHE_GHA_ENABLED: "true"
   CCACHE: "true"
-  FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
-  DEVEL: ${{ inputs.devel }}
-  BUILD_ID: ${{ inputs.build-id }}
-  FORCE_PGO: ${{ inputs.force_pgo }}
+  DEVEL: ${{ inputs.devel || 'true' }}
+  BUILD_ID: ${{ inputs.build-id || 'push' }}
+  FORCE_PGO: ${{ inputs.force_pgo || 'false' }}
 
 jobs:
   # TODO(crueter): All matrix steps can be combined into one, probably.
@@ -68,16 +76,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup
-        uses: ./.github/workflows/setup
-        with:
-          key: ${{ runner.os }}-${{ matrix.os.arch }}-${{ matrix.compiler.program }}
-          version: ${{ inputs.cpm-cache-version }}
-
       - name: Install dependencies
         run: ./.ci/deps/arch.sh
         env:
           GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+      - name: Setup
+        uses: ./.github/workflows/setup
+        with:
+          key: ${{ runner.os }}-${{ matrix.os.arch }}-${{ matrix.compiler.program }}
+          version: ${{ inputs.cpm-cache-version || 'v21' }}
+          branch: ${{ inputs.branch }}
 
       - name: Configure
         run: ./.ci/build/configure.sh -DCCACHE_PATH=${SCCACHE_PATH}
@@ -95,12 +104,4 @@ jobs:
         with:
           name: linux-${{ matrix.os.arch }}-${{ matrix.compiler.program }}-${{ matrix.compiler.target }}
           path: ./artifacts/*.AppImage
-          archive: false
-
-      - name: Upload zsync
-        uses: actions/upload-artifact@v7
-        if: ${{ inputs.devel != 'true' }}
-        with:
-          name: linux-${{ matrix.os.arch }}-${{ matrix.compiler.program }}-${{ matrix.compiler.target }}-zsync
-          path: ./artifacts/*.AppImage.zsync
           archive: false

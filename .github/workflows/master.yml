@@ -1,34 +1,21 @@
 name: "[Auto] Master push"
 
 on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Eden branch to build"
+        type: string
+        default: master
   repository_dispatch:
     types: [master]
-
-env:
-  DISABLE_ARM: ${{ vars.DISABLE_ARM }}
-  FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
 
 jobs:
   build:
     name: Build
     uses: ./.github/workflows/build.yml
     with:
-      devel: true
+      branch: ${{ inputs.branch || github.event.client_payload.branch || 'master' }}
+      devel: ${{ 'true' }}
       build-id: 'master'
-    secrets: inherit
-
-  release:
-    name: "Create Release"
-    needs: [build]
-    if: ${{ always() }}
-    permissions:
-      actions: read
-      security-events: write
-      contents: write
-      discussions: write
-    uses: ./.github/workflows/release.yml
-    with:
-      devel: true
-      build-id: 'master'
-      status: ${{ needs.build.result }}
     secrets: inherit

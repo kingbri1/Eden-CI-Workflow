@@ -101,7 +101,7 @@ cd src/android
 chmod +x ./gradlew
 
 set -- "$@" -DUSE_CCACHE="${CCACHE}"
-[ "$DEVEL" != "true" ] && set -- "$@" -DENABLE_UPDATE_CHECKER=ON
+set -- "$@" -DENABLE_UPDATE_CHECKER=OFF
 if [ "$BUILD_ID" = "nightly" ]; then
 	NIGHTLY=true
 else

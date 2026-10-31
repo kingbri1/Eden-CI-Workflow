@@ -11,18 +11,8 @@ arch() {
 	EOF
 }
 
-amd=$(arch ubuntu-latest amd64)
 arm=$(arch ubuntu-24.04-arm aarch64)
-
-legacy=$(arch ubuntu-latest legacy)
-steam=$(arch ubuntu-latest steamdeck)
-ally=$(arch ubuntu-latest rog-ally)
-
-arches="[$amd, $arm"
-if use_extra; then
-	arches="$arches, $legacy, $steam, $ally"
-fi
-arches="$arches]"
+arches="[$arm]"
 
 echo "Architectures: $arches"
 echo "matrix=${arches}" >>"$GITHUB_OUTPUT"

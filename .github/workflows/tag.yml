@@ -1,11 +1,14 @@
 name: "[Auto] Tagged Release"
 
 on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Eden branch to build"
+        type: string
+        default: master
   repository_dispatch:
     types: [tag]
-
-env:
-  DISABLE_ARM: ${{ vars.DISABLE_ARM }}
 
 jobs:
   build:
@@ -15,21 +18,7 @@ jobs:
       cancel-in-progress: true
     uses: ./.github/workflows/build.yml
     with:
-      devel: false
+      branch: ${{ inputs.branch || github.event.client_payload.branch || 'master' }}
+      devel: ${{ 'false' }}
       build-id: 'tag'
-    secrets: inherit
-
-  release:
-    name: "Create Release"
-    needs: [build]
-    permissions:
-      actions: read
-      security-events: write
-      contents: write
-      discussions: write
-    uses: ./.github/workflows/release.yml
-    with:
-      devel: false
-      build-id: 'tag'
-      status: ${{ needs.build.result }}
     secrets: inherit

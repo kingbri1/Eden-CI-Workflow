@@ -5,9 +5,11 @@ on:
     branches:
       - 'master'
   workflow_dispatch:
-
-env:
-  DISABLE_ARM: ${{ vars.DISABLE_ARM }}
+    inputs:
+      branch:
+        description: "Eden branch to build"
+        type: string
+        default: master
 
 jobs:
   build:
@@ -17,22 +19,7 @@ jobs:
       cancel-in-progress: false
     uses: ./.github/workflows/build.yml
     with:
-      devel: true
+      branch: ${{ inputs.branch || github.event.client_payload.branch || 'master' }}
+      devel: ${{ 'true' }}
       build-id: 'push'
-    secrets: inherit
-
-  release:
-    name: "Create Release"
-    needs: [build]
-    if: ${{ always() }}
-    permissions:
-      actions: read
-      security-events: write
-      contents: write
-      discussions: write
-    uses: ./.github/workflows/release.yml
-    with:
-      devel: true
-      build-id: 'push'
-      status: ${{ needs.build.result }}
     secrets: inherit
